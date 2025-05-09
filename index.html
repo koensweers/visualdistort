@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visual Distort Menu</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      background-color: black;
+      color: white;
+      font-family: 'Source Code Pro', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      margin-top: 50px;
+      letter-spacing: 2px;
+      text-align: center;
+    }
+
+    .container {
+      perspective: 2000px;
+      margin-top: 50px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      max-width: 680px;
+      width: 100%;
+      grid-gap: 40px;
+      justify-items: center;
+      padding: 0 20px;
+      transition: transform 0.1s ease;
+      will-change: transform;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .image-box {
+      border: 1px solid white;
+      width: 200px;
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      color: white;
+      transition: transform 0.1s, border-color 0.3s;
+      will-change: transform;
+    }
+
+    .image-box:hover {
+      border-color: gray;
+    }
+
+    .title {
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    .mobile-warning {
+      display: none;
+      color: white;
+      font-size: 1.5em;
+      text-align: center;
+      margin-top: 50px;
+      padding: 20px;
+    }
+
+    @media (max-width: 1024px) {
+      .container {
+        display: none;
+      }
+      .mobile-warning {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1 id="glitch-title">visualdistort</h1>
+  <div class="container">
+    <div class="grid">
+<div class="grid">
+		<div class="card">
+			<a href="#" class="image-box">
+			<img src="thumbnails/comingsoon.webp" alt="coming soon" style="max-width: 100%; max-height: 100%;">
+			</a>
+			<div class="title">coming soon</div>
+		</div>
+		
+		<div class="card">
+			<a href="#" class="image-box">
+			<img src="thumbnails/comingsoon.webp" alt="coming soon" style="max-width: 100%; max-height: 100%;">
+			</a>
+			<div class="title">coming soon</div>
+		</div>
+		
+		<div class="card">
+			<a href="#" class="image-box">
+			<img src="thumbnails/comingsoon.webp" alt="coming soon" style="max-width: 100%; max-height: 100%;">
+			</a>
+			<div class="title">coming soon</div>
+		</div>
+		
+		<div class="card">
+			<a href="#" class="image-box">
+			<img src="thumbnails/comingsoon.webp" alt="coming soon" style="max-width: 100%; max-height: 100%;">
+			</a>
+			<div class="title">coming soon</div>
+		</div>
+		
+		<div class="card">
+			<a href="#" class="image-box">
+			<img src="thumbnails/comingsoon.webp" alt="coming soon" style="max-width: 100%; max-height: 100%;">
+			</a>
+			<div class="title">coming soon</div>
+		</div>
+		
+		<div class="card">
+			<a href="tools/wireframe/wireframe.html" class="image-box">
+			<img src="thumbnails/wireframe.gif" alt="Wireframe" style="max-width: 100%; max-height: 100%;">
+			</a>
+			<div class="title">wireframe</div>
+		</div>
+</div>
+
+    </div>
+  </div>
+  <div class="mobile-warning">
+    Sorry! We do not support mobile or tablet devices.
+  </div>
+
+<section id="spotlight" style="margin: 50px 20px; text-align: center;">
+  <h2>Spotlight</h2>
+  <p>Want to showcase your artwork? <br> https://github.com/koensweers/visualdistort/issues</p>
+  <a href="https://www.youtube.com/watch?v=iOVkXa4f-O8" target="_blank" style="color: lightblue; text-decoration: underline;"> Wireframe by Koen Sweers (YouTube)</a>
+</section>
+
+
+  <script>
+    // Tilt effect on full page
+    const grid = document.querySelector('.grid');
+    window.addEventListener('mousemove', (e) => {
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      const rotateX = ((e.clientY - centerY) / centerY) * 5;
+      const rotateY = ((e.clientX - centerX) / centerX) * -5;
+      grid.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+    });
+
+    // One-time Glitch effect
+    const glitchElement = document.getElementById('glitch-title');
+    const originalText = glitchElement.textContent;
+    const chars = "!@#$%^&*()_+=-{}[]<>?/|~`0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+    function glitchOnce() {
+      let iterations = 0;
+      const interval = setInterval(() => {
+        let glitched = originalText.split('').map((char, i) => {
+          if (Math.random() < 0.3 && iterations < 5) {
+            return chars[Math.floor(Math.random() * chars.length)];
+          }
+          return char;
+        }).join('');
+        glitchElement.textContent = glitched;
+        iterations++;
+        if (iterations > 5) {
+          clearInterval(interval);
+          glitchElement.textContent = originalText;
+        }
+      }, 100);
+    }
+
+    // Trigger glitch once when page loads
+    window.addEventListener('load', glitchOnce);
+  </script>
+</body>
+</html>

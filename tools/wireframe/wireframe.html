@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8"/>
+  <title>visualdistort - wireframe</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400&display=swap" rel="stylesheet">
+
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background-color: #000000;
+  color: #ffffff;
+  font-family: 'Source Code Pro', monospace;
+}
+#openMenuBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #ffffff;
+  color: #000000;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  z-index: 20;
+  font-family: 'Source Code Pro', monospace;
+}
+</style>
+
+</head>
+<body>
+  <button id="openMenuBtn" onclick="openMenuPopup()">Open Menu</button>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.min.js"></script>
+  <script>
+    let menuWindow = null;
+    let scene, camera, renderer, mesh, material, geometry;
+    let perspectiveCamera, orthoCamera;
+    let usingOrtho = false;
+    let originalPositions = [];
+    let autoNoise = false;
+    let autoNoiseTimer = null;
+    let mode = 'seconds';
+let micNoise = false;
+let tabNoise = false;
+let tabStream = null;
+let tabGain = 1;
+let tabAnalyser = null;
+let tabDataArray = null;
+let tabAudioContext = null;
+
+let micGain = 1;
+let micStream = null;
+let audioContext = null;
+let analyser = null;
+let micDataArray = null;
+
+
+    const state = {
+      shape: 'box',
+      rotateSpeed: 0.01,
+      segments: 1,
+      noise: 0,
+      color: '#ffffff',
+      rotateX: 0,
+      rotateY: 0.01,
+      interval: 3,
+      bpm: 120,
+    };
+
+    function openMenuPopup() {
+      menuWindow = window.open('wireframe-menu.html', 'MenuPopup', 'width=320,height=720');
+    }
+
+    function init() {
+      scene = new THREE.Scene();
+
+      const aspect = window.innerWidth / window.innerHeight;
+      const frustumSize = 3;
+      perspectiveCamera = new THREE.PerspectiveCamera(60, aspect, 0.1, 100);
+      perspectiveCamera.position.z = 3;
+
+      orthoCamera = new THREE.OrthographicCamera(
+        -frustumSize * aspect / 2,
+        frustumSize * aspect / 2,
+        frustumSize / 2,
+        -frustumSize / 2,
+        0.1,
+        100
+      );
+      orthoCamera.position.z = 3;
+
+      camera = perspectiveCamera;
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      material = new THREE.MeshBasicMaterial({ color: state.color, wireframe: true });
+      createShape();
+
+      window.addEventListener('resize', () => {
+        const aspect = window.innerWidth / window.innerHeight;
+        perspectiveCamera.aspect = aspect;
+        perspectiveCamera.updateProjectionMatrix();
+
+        const frustumSize = 3;
+        orthoCamera.left = -frustumSize * aspect / 2;
+        orthoCamera.right = frustumSize * aspect / 2;
+        orthoCamera.top = frustumSize / 2;
+        orthoCamera.bottom = -frustumSize / 2;
+        orthoCamera.updateProjectionMatrix();
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'r' || event.key === 'R') {
+    // Reset camera positie en zoom
+    camera.position.set(0, 0, 3);
+    camera.lookAt(0, 0, 0);
+
+    if (camera === perspectiveCamera) {
+      camera.position.z = 3;
+    } else if (camera === orthoCamera) {
+      const aspect = window.innerWidth / window.innerHeight;
+      const frustumSize = 3;
+      orthoCamera.left = -frustumSize * aspect / 2;
+      orthoCamera.right = frustumSize * aspect / 2;
+      orthoCamera.top = frustumSize / 2;
+      orthoCamera.bottom = -frustumSize / 2;
+      orthoCamera.position.z = 3;
+      orthoCamera.updateProjectionMatrix();
+    }
+
+    // Reset shape rotatie
+    if (mesh) {
+      mesh.rotation.set(0, 0, 0);
+    }
+
+  } else if (event.key === 'c' || event.key === 'C') {
+    // Wissel tussen orthografisch en perspectief
+    usingOrtho = !usingOrtho;
+    camera = usingOrtho ? orthoCamera : perspectiveCamera;
+    camera.position.set(0, 0, 3);
+    camera.lookAt(0, 0, 0);
+    console.log("Camera switched to", usingOrtho ? "Orthographic" : "Perspective");
+  }
+});
+
+
+
+      window.addEventListener('message', handleMessage);
+    }
+
+    function handleMessage(event) {
+      const { type, value } = event.data;
+      if (!type) return;
+
+      switch (type) {
+        case 'micVolume': micGain = parseFloat(value); break;
+        case 'toggleCamera':
+          usingOrtho = !usingOrtho;
+          camera = usingOrtho ? orthoCamera : perspectiveCamera;
+          camera.position.set(0, 0, 3);
+          camera.lookAt(0, 0, 0);
+          console.log("Camera switched to", usingOrtho ? "Orthographic" : "Perspective");
+          break;
+        case 'resetCamera':
+          camera.position.set(0, 0, 3);
+          camera.lookAt(0, 0, 0);
+          if (camera === perspectiveCamera) {
+            camera.position.z = 3;
+          } else if (camera === orthoCamera) {
+            const aspect = window.innerWidth / window.innerHeight;
+            const frustumSize = 3;
+            orthoCamera.left = -frustumSize * aspect / 2;
+            orthoCamera.right = frustumSize * aspect / 2;
+            orthoCamera.top = frustumSize / 2;
+            orthoCamera.bottom = -frustumSize / 2;
+            orthoCamera.position.z = 3;
+            orthoCamera.updateProjectionMatrix();
+          }
+          if (mesh) {
+            mesh.rotation.set(0, 0, 0);
+          }
+          break;
+
+        case 'shape': state.shape = value; createShape(); break;
+        case 'rotateX': state.rotateX = parseFloat(value); break;
+        case 'rotateY': state.rotateY = parseFloat(value); break;
+        case 'rotateSpeed': state.rotateSpeed = parseFloat(value); break;
+        case 'segments': state.segments = parseInt(value); createShape(); applyNoise(state.noise); break;
+        case 'noise': state.noise = parseFloat(value); applyNoise(state.noise); break;
+        case 'color': state.color = value; material.color.set(value); break;
+        case 'interval': state.interval = parseFloat(value); if (autoNoise) startAutoNoise(); break;
+        case 'bpm': state.bpm = parseInt(value); if (autoNoise) startAutoNoise(); break;
+        case 'mode': mode = value; if (autoNoise) startAutoNoise(); break;
+        case 'tabVolume':
+          tabGain = parseFloat(value);
+          break;
+        case 'tabNoise':
+          tabNoise = value;
+          if (tabNoise) {
+            startTabNoise();
+          } else {
+            stopTabNoise();
+          }
+          break;
+        case 'micNoise':
+          micNoise = value;
+          if (micNoise) {
+            startMicNoise();
+          } else {
+            stopMicNoise();
+          }
+          break;
+        case 'autoNoise':
+          autoNoise = value;
+          if (autoNoise) startAutoNoise();
+          else clearInterval(autoNoiseTimer);
+          break;
+      }
+    }
+
+    function createShape() {
+      if (mesh) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+      }
+
+      const segments = state.segments;
+      switch (state.shape) {
+        case 'box': geometry = new THREE.BoxGeometry(1, 1, 1, segments, segments, segments); break;
+        case 'sphere': geometry = new THREE.SphereGeometry(0.75, segments * 2, segments); break;
+        case 'cylinder': geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, segments); break;
+        case 'cone': geometry = new THREE.ConeGeometry(0.5, 1, segments); break;
+        case 'torus': geometry = new THREE.TorusGeometry(0.5, 0.2, segments, segments * 2); break;
+        case 'circle': geometry = new THREE.CircleGeometry(0.75, segments * 2); break;
+        case 'plane': geometry = new THREE.PlaneGeometry(1.5, 1.5, segments, segments); break;
+      }
+
+      mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
+
+      const pos = geometry.attributes.position;
+      originalPositions = [];
+      for (let i = 0; i < pos.count; i++) {
+        originalPositions.push({ x: pos.getX(i), y: pos.getY(i), z: pos.getZ(i) });
+      }
+    }
+
+    function applyNoise(amount) {
+      const pos = geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const orig = originalPositions[i];
+        pos.setXYZ(
+          i,
+          orig.x + (Math.random() - 0.5) * amount,
+          orig.y + (Math.random() - 0.5) * amount,
+          orig.z + (Math.random() - 0.5) * amount
+        );
+      }
+      pos.needsUpdate = true;
+    }
+
+    function startAutoNoise() {
+      clearInterval(autoNoiseTimer);
+      const intervalMs = mode === 'seconds'
+        ? state.interval * 1000
+        : (60 / state.bpm) * 1000;
+
+      autoNoiseTimer = setInterval(() => {
+        let current = state.noise;
+        const range = 0.002;
+        const min = Math.max(0, current - range / 2);
+        const max = Math.min(1, current + range / 2);
+        current = Math.random() * (max - min) + min;
+        state.noise = current;
+        applyNoise(current);
+
+        if (menuWindow) {
+          menuWindow.postMessage({ type: 'setNoiseSlider', value: current.toFixed(2) }, '*');
+        }
+      }, intervalMs);
+    }
+
+    
+async function startMicNoise() {
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createMediaStreamSource(micStream);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 64;
+    source.connect(analyser);
+    micDataArray = new Uint8Array(analyser.frequencyBinCount);
+  } catch (err) {
+    console.error('Microfoonfout:', err);
+  }
+}
+
+function stopMicNoise() {
+  if (micStream) {
+    micStream.getTracks().forEach(track => track.stop());
+    micStream = null;
+  }
+  if (audioContext) {
+    audioContext.close();
+    audioContext = null;
+  }
+}
+
+
+async function startTabNoise() {
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        sampleRate: 44100
+      }
+    });
+    tabStream = stream;
+    tabAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = tabAudioContext.createMediaStreamSource(stream);
+    tabAnalyser = tabAudioContext.createAnalyser();
+    tabAnalyser.fftSize = 64;
+    source.connect(tabAnalyser);
+    tabDataArray = new Uint8Array(tabAnalyser.frequencyBinCount);
+  } catch (err) {
+    console.error('Tab audio fout:', err);
+  }
+}
+
+function stopTabNoise() {
+  if (tabStream) {
+    tabStream.getTracks().forEach(track => track.stop());
+    tabStream = null;
+  }
+  if (tabAudioContext) {
+    tabAudioContext.close();
+    tabAudioContext = null;
+  }
+}
+
+function animate() {
+      requestAnimationFrame(animate);
+      if (mesh) {
+        mesh.rotation.x += state.rotateX;
+        mesh.rotation.y += state.rotateY;
+      }
+      if (micNoise && analyser && micDataArray) {
+        analyser.getByteFrequencyData(micDataArray);
+        const avg = micDataArray.reduce((a, b) => a + b) / micDataArray.length;
+        const micNoiseAmount = Math.min(1, (avg / 128) * tabGain * micGain);
+        state.noise = micNoiseAmount;
+        applyNoise(micNoiseAmount);
+        if (menuWindow) {
+          menuWindow.postMessage({ type: 'setNoiseSlider', value: micNoiseAmount.toFixed(2) }, '*');
+        }
+      }
+      
+      if (tabNoise && tabAnalyser && tabDataArray) {
+        tabAnalyser.getByteFrequencyData(tabDataArray);
+        const avg = tabDataArray.reduce((a, b) => a + b) / tabDataArray.length;
+        const tabNoiseAmount = Math.min(1, (avg / 128) * tabGain);
+        state.noise = tabNoiseAmount;
+        applyNoise(tabNoiseAmount);
+        if (menuWindow) {
+          menuWindow.postMessage({ type: 'setNoiseSlider', value: tabNoiseAmount.toFixed(2) }, '*');
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    init();
+    animate();
+  </script>
+
+  <script>
+    const menuBtn = document.getElementById('openMenuBtn');
+    document.addEventListener('mouseleave', () => menuBtn.style.display = 'none');
+    document.addEventListener('mouseenter', () => menuBtn.style.display = 'block');
+  </script>
+
+  <script>
+window.addEventListener('wheel', (event) => {
+  const zoomSpeed = 0.1;
+
+  if (usingOrtho) {
+    const delta = -event.deltaY * zoomSpeed * 0.01; // natuurlijk scrollgedrag
+    const zoomFactor = 1 + delta;
+    if (zoomFactor > 0.1 && zoomFactor < 10) {
+      orthoCamera.top /= zoomFactor;
+      orthoCamera.bottom /= zoomFactor;
+      orthoCamera.left /= zoomFactor;
+      orthoCamera.right /= zoomFactor;
+      orthoCamera.updateProjectionMatrix();
+    }
+  } else {
+    // omgedraaid zodat scroll naar achter = inzoomen, net als ortho
+		camera.position.z += event.deltaY * zoomSpeed * 0.01;
+
+  }
+});
+
+  </script>
+
+<script>
+  let isRightMouseDown = false;
+  let isLeftMouseDown = false;
+  let lastMouseX = 0;
+  let lastMouseY = 0;
+
+  window.addEventListener('mousedown', (event) => {
+    if (event.button === 2) {
+      isRightMouseDown = true;
+    } else if (event.button === 0) {
+      isLeftMouseDown = true;
+    }
+    lastMouseX = event.clientX;
+    lastMouseY = event.clientY;
+  });
+
+  window.addEventListener('mouseup', (event) => {
+    if (event.button === 2) isRightMouseDown = false;
+    if (event.button === 0) isLeftMouseDown = false;
+  });
+
+  window.addEventListener('mousemove', (event) => {
+    const deltaX = event.clientX - lastMouseX;
+    const deltaY = event.clientY - lastMouseY;
+
+    if (isRightMouseDown) {
+      camera.position.x -= deltaX * 0.01;
+      camera.position.y += deltaY * 0.01;
+    } else if (isLeftMouseDown && mesh) {
+      mesh.rotation.y += deltaX * 0.01;
+      mesh.rotation.x += deltaY * 0.01;
+    }
+
+    lastMouseX = event.clientX;
+    lastMouseY = event.clientY;
+  });
+
+  window.addEventListener('contextmenu', (event) => event.preventDefault());
+</script>
+
+
+<style>
+  #backToMainBtn {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ffffff;
+    color: #000000;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'Source Code Pro', monospace;
+    display: none;
+    z-index: 20;
+  }
+</style>
+
+<button id="backToMainBtn" onclick="location.href='https://visualdistort.com'">Back to main page</button>
+
+<script>
+  const backBtn = document.getElementById('backToMainBtn');
+
+  function showBackButton() {
+    backBtn.style.display = 'block';
+  }
+
+  function hideBackButton() {
+    backBtn.style.display = 'none';
+  }
+
+  document.addEventListener('mouseenter', showBackButton);
+  document.addEventListener('mouseleave', hideBackButton);
+
+  // Controleer of de muis al boven de pagina hangt bij het laden
+  if (document.body.matches(':hover')) {
+    showBackButton();
+  }
+</script>
+
+</body>
+</html>

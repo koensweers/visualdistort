@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8"/>
+  <title>visualdistort - wireframe menu</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400&display=swap" rel="stylesheet">
+
+<style>
+body {
+  background-color: #000000;
+  color: #ffffff;
+  font-family: 'Source Code Pro', monospace;
+  padding: 10px;
+}
+label {
+  display: block;
+  margin-top: 10px;
+}
+input, select, button {
+  width: 150px;
+  margin-top: 4px;
+  font-family: 'Source Code Pro', monospace;
+}
+button {
+  background: #ffffff;
+  color: #000000;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+input[type="range"].highlight {
+  box-shadow: 0 0 8px 2px #ffffff;
+  transition: box-shadow 0.3s ease;
+}
+a {
+  color: #ffffff !important;
+  text-decoration: none !important;
+}
+a:visited, a:hover, a:active, a:focus {
+  color: #ffffff !important;
+  text-decoration: none !important;
+}
+
+</style>
+
+</head>
+<body>
+<div style="text-align: center; margin-bottom: 20px;">
+  <a href="https://visualdistort.com" target="_blank" rel="noopener noreferrer"><h1 style="margin: 0; font-family: 'Source Code Pro', monospace;">visualdistort</h1></a>
+  <small style="display: block; font-family: 'Source Code Pro', monospace;">wireframe</small>
+  <hr/>
+</div>
+
+  <label>Shape: <select id="shape">
+    <option value="box">Box</option>
+    <option value="sphere">Sphere</option>
+    <option value="cylinder">Cylinder</option>
+    <option value="torus">Torus</option>
+    <option value="cone">Cone</option>
+    <option value="circle">Circle</option>
+    <option value="plane">Plane</option>
+  </select></label>
+  <label>Rotate X: <input id="rotateX" max="0.1" min="0" step="0.001" type="range" value="0"/></label>
+  <label>Rotate Y: <input id="rotateY" max="0.1" min="0" step="0.001" type="range" value="0"/></label>
+  <label>Segments: <input id="segments" max="32" min="1" step="1" type="range" value="1"/></label>
+  <label>Noise: <input id="noise" max="1" min="0" step="0.01" type="range" value="0"/> <span id="noiseValue">0.00</span></label>
+  <label>Line Color: <input id="color" type="color" value="#ffffff"/></label>
+  <hr/>
+  <label><input checked name="mode" type="radio" value="seconds"/> Seconds</label>
+  <label><input name="mode" type="radio" value="bpm"/> BPM</label>
+  <label id="intervalLabel">Interval (sec): <input id="interval" max="2" min="0.01" step="0.01" type="range" value="1"/><span id="intervalValue">1.00</span></label>
+<label id="bpmContainer" style="display: none;">
+  BPM: <input id="bpm" max="2000" min="20" type="number" value="128"/>
+  <button id="bpmTapper">Tap BPM</button>
+  <div style="margin-top: 10px;">
+    <strong>Presets:</strong><br/>
+    <button onclick="setBPM(174)">DnB (174)</button>
+    <button onclick="setBPM(128)">House (128)</button>
+    <button onclick="setBPM(200)">Frenchcore (200)</button>
+    <button onclick="setBPM(150)">Hardstyle (150)</button>
+    <button onclick="setBPM(100)">Rock (100)</button>
+  </div>
+</label>
+
+  <button id="autoNoiseBtn" onclick="toggleAutoNoise()">Auto Noise: Off</button>
+  <button id="micNoiseBtn" onclick="toggleMicNoise()">Use Microphone: Off</button>
+  <button id="tabNoiseBtn" onclick="toggleTabNoise()">Use Tab + Audio: Off</button>
+<label id="tabVolumeContainer" style="display: none;">
+  Tab Audio Volume:
+  <input id="tabVolume" type="range" min="0" max="5" step="0.1" value="1">
+</label>
+<label id="micVolumeContainer" style="display: none;">
+  Microfoon Volume:
+  <input id="micVolume" type="range" min="0" max="5" step="0.1" value="1">
+</label>
+
+
+
+<hr/>
+<p><strong>Keyboard Shortcuts:</strong></p>
+<ul>
+  <li><strong>C</strong> = Toggle Perspective</li>
+  <li><strong>R</strong> = Reset Camera View</li>
+</ul>
+
+
+
+  <script>
+    const send = (type, value) => window.opener.postMessage({ type, value }, "*");
+
+    document.getElementById('shape').onchange = e => send('shape', e.target.value);
+    document.getElementById('rotateX').oninput = e => send('rotateX', e.target.value);
+    document.getElementById('rotateY').oninput = e => send('rotateY', e.target.value);
+    document.getElementById('segments').oninput = e => send('segments', e.target.value);
+    const noiseInput = document.getElementById('noise');
+const noiseValue = document.getElementById('noiseValue');
+noiseInput.oninput = e => {
+  send('noise', e.target.value);
+  noiseValue.innerText = parseFloat(e.target.value).toFixed(2);
+};
+    document.getElementById('color').oninput = e => send('color', e.target.value);
+
+    const intervalInput = document.getElementById('interval');
+    const intervalValue = document.getElementById('intervalValue');
+    intervalInput.oninput = e => {
+      send('interval', e.target.value);
+      intervalValue.innerText = parseFloat(e.target.value).toFixed(2);
+    };
+
+    document.getElementById('bpm').oninput = e => send('bpm', e.target.value);
+
+    document.querySelectorAll('input[name="mode"]').forEach(r => {
+      r.onchange = e => {
+        send('mode', e.target.value);
+        document.getElementById('intervalLabel').style.display = e.target.value === 'seconds' ? 'block' : 'none';
+        document.getElementById('bpmContainer').style.display = e.target.value === 'bpm' ? 'block' : 'none';
+      };
+    });
+
+    let autoNoiseOn = false;
+    let micNoiseOn = false;
+    function toggleAutoNoise() {
+  if (!autoNoiseOn) {
+    micNoiseOn = false;
+    tabNoiseOn = false;
+    document.getElementById('micNoiseBtn').innerText = 'Use Microphone: Off';
+    document.getElementById('tabNoiseBtn').innerText = 'Use Tab + Audio: Off';
+    document.getElementById('micVolumeContainer').style.display = 'none';
+    document.getElementById('tabVolumeContainer').style.display = 'none';
+    send('micNoise', false);
+    send('tabNoise', false);
+  }
+
+      if (micNoiseOn) {
+        micNoiseOn = false;
+        document.getElementById('micNoiseBtn').innerText = 'Use Microphone: Off';
+        send('micNoise', false);
+      }
+      autoNoiseOn = !autoNoiseOn;
+      send('autoNoise', autoNoiseOn);
+      document.getElementById('autoNoiseBtn').innerText = `Auto Noise: ${autoNoiseOn ? 'On' : 'Off'}`;
+    }
+
+    window.addEventListener('message', (event) => {
+      const { type, value } = event.data;
+      if (type === 'setNoiseSlider') {
+        noiseInput.value = value;
+        noiseValue.innerText = parseFloat(value).toFixed(2);
+        noiseInput.classList.add('highlight');
+        setTimeout(() => noiseInput.classList.remove('highlight'), 300);
+      }
+    });
+
+    function toggleMicNoise() {
+  if (!micNoiseOn) {
+    autoNoiseOn = false;
+    tabNoiseOn = false;
+    document.getElementById('autoNoiseBtn').innerText = 'Auto Noise: Off';
+    document.getElementById('tabNoiseBtn').innerText = 'Use Tab + Audio: Off';
+    document.getElementById('tabVolumeContainer').style.display = 'none';
+    send('autoNoise', false);
+    send('tabNoise', false);
+  }
+
+      micNoiseOn = !micNoiseOn;
+      send('micNoise', micNoiseOn);
+      document.getElementById('micVolumeContainer').style.display = micNoiseOn ? 'block' : 'none';
+      send('micVolume', parseFloat(document.getElementById('micVolume').value));
+      document.getElementById('micNoiseBtn').innerText = `Gebruik Microfoon: ${micNoiseOn ? 'Aan' : 'Uit'}`;
+      if (micNoiseOn) {
+        autoNoiseOn = false;
+        document.getElementById('autoNoiseBtn').innerText = 'Auto Noise: Off';
+        send('autoNoise', false);
+      }
+    }
+
+    
+document.getElementById('micVolume').oninput = e => {
+  send('micVolume', parseFloat(e.target.value));
+};
+
+
+    window.onload = () => {
+      send('shape', document.getElementById('shape').value);
+      send('rotateX', document.getElementById('rotateX').value);
+      send('rotateY', document.getElementById('rotateY').value);
+      send('segments', document.getElementById('segments').value);
+      send('noise', document.getElementById('noise').value);
+      noiseValue.innerText = parseFloat(noiseInput.value).toFixed(2);
+      send('color', document.getElementById('color').value);
+      send('interval', document.getElementById('interval').value);
+      send('bpm', document.getElementById('bpm').value);
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      send('mode', mode);
+    };
+  </script>
+  
+  <script>
+  
+  let lastTap = 0;
+let tapIntervals = [];
+
+document.getElementById('bpmTapper').addEventListener('click', () => {
+  const now = Date.now();
+
+  if (lastTap > 0) {
+    const interval = now - lastTap;
+    tapIntervals.push(interval);
+    if (tapIntervals.length > 5) tapIntervals.shift(); // max 5 intervallen
+    const avgInterval = tapIntervals.reduce((a, b) => a + b, 0) / tapIntervals.length;
+    const bpm = Math.round(60000 / avgInterval);
+    document.getElementById('bpm').value = bpm;
+    send('bpm', bpm);
+  }
+
+  lastTap = now;
+});
+
+  function setBPM(value) {
+  document.getElementById('bpm').value = value;
+  send('bpm', value);
+}
+  
+  </script>
+  
+  
+
+<script>
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'c' || event.key === 'C') {
+    window.opener.postMessage({ type: 'toggleCamera' }, '*');
+  } else if (event.key === 'r' || event.key === 'R') {
+    window.opener.postMessage({ type: 'resetCamera' }, '*');
+  }
+});
+</script>
+
+</body>
+</html>
+
+<script>
+let tabNoiseOn = false;
+function toggleTabNoise() {
+  if (!tabNoiseOn) {
+    micNoiseOn = false;
+    autoNoiseOn = false;
+    document.getElementById('micNoiseBtn').innerText = 'Use Microphone: Off';
+    document.getElementById('autoNoiseBtn').innerText = 'Auto Noise: Off';
+    document.getElementById('micVolumeContainer').style.display = 'none';
+    send('micNoise', false);
+    send('autoNoise', false);
+  }
+
+  if (!tabNoiseOn) {
+    // Zet andere modi uit
+    micNoiseOn = false;
+    autoNoiseOn = false;
+    document.getElementById('micNoiseBtn').innerText = 'Use Microphone: Off';
+    document.getElementById('autoNoiseBtn').innerText = 'Auto Noise: Off';
+    document.getElementById('micVolumeContainer').style.display = 'none';
+    send('micNoise', false);
+    send('autoNoise', false);
+  }
+
+  tabNoiseOn = !tabNoiseOn;
+  send('tabNoise', tabNoiseOn);
+  document.getElementById('tabVolumeContainer').style.display = tabNoiseOn ? 'block' : 'none';
+  document.getElementById('tabNoiseBtn').innerText = `Gebruik Tab + Audio: ${tabNoiseOn ? 'Aan' : 'Uit'}`;
+  if (tabNoiseOn) {
+    micNoiseOn = false;
+    autoNoiseOn = false;
+    document.getElementById('micNoiseBtn').innerText = 'Use Microphone: Off';
+    document.getElementById('autoNoiseBtn').innerText = 'Auto Noise: Off';
+    document.getElementById('micVolumeContainer').style.display = 'none';
+    send('micNoise', false);
+    send('autoNoise', false);
+  }
+}
+</script>
+
+<script>
+document.getElementById('tabVolume').oninput = e => {
+  send('tabVolume', parseFloat(e.target.value));
+};
+</script>
