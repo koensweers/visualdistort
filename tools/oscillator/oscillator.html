@@ -1,0 +1,296 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>visualdistort - oscillator</title>
+
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background-color: #000000;
+  color: #ffffff;
+  font-family: 'Source Code Pro', monospace;
+}
+#openMenuBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #ffffff;
+  color: #000000;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  z-index: 20;
+  font-family: 'Source Code Pro', monospace;
+  display: none;
+}
+#backToMainBtn {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffffff;
+  color: #000000;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: 'Source Code Pro', monospace;
+  display: none;
+  z-index: 20;
+}
+canvas {
+  display: block;
+}
+</style>
+
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap" rel="stylesheet">
+  
+
+
+</head>
+<body>
+  <div id="controls">
+  
+  <canvas id="oscCanvas"></canvas>
+</div>
+
+<script>
+let menuWindow = null;
+let canvas = document.getElementById('oscCanvas');
+let ctx = canvas.getContext('2d');
+
+let state = {
+  waveform: 'sine',
+  frequency: 1,
+  amplitude: 1,
+  cycles: 2,
+  color: '#ffffff',
+  lineWidth: 2,
+  speed: 1,
+  interval: 1,
+  bpm: 128,
+  mode: 'seconds',
+};
+
+let autoAmplitude = false;
+let micControl = false;
+let tabControl = false;
+let micStream = null;
+let micAnalyser = null;
+let micDataArray = null;
+let micGain = 1;
+let audioContext = null;
+
+let tabStream = null;
+let tabAnalyser = null;
+let tabDataArray = null;
+let tabGain = 1;
+let tabAudioContext = null;
+
+let autoAmplitudeTimer = null;
+
+function openMenuPopup() {
+  menuWindow = window.open('oscillator-menu.html', 'MenuPopup', 'width=320,height=800');
+}
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+window.addEventListener('message', ({ data }) => {
+  const { type, value } = data;
+  if (!type) return;
+
+  if (type === 'amplitude') state.amplitude = parseFloat(value);
+  else if (type === 'waveform') state.waveform = value;
+  else if (type === 'frequency') state.frequency = parseFloat(value);
+  else if (type === 'phase') state.phase = parseFloat(value);
+  else if (type === 'cycles') state.cycles = parseFloat(value);
+  else if (type === 'color') state.color = value;
+  else if (type === 'lineWidth') state.lineWidth = parseInt(value);
+  else if (type === 'speed') state.speed = parseFloat(value);
+  else if (type === 'interval') { state.interval = parseFloat(value); if (autoAmplitude) startAutoAmplitude(); }
+  else if (type === 'bpm') { state.bpm = parseInt(value); if (autoAmplitude) startAutoAmplitude(); }
+  else if (type === 'mode') { state.mode = value; if (autoAmplitude) startAutoAmplitude(); }
+  else if (type === 'micVolume') micGain = parseFloat(value);
+  else if (type === 'tabVolume') tabGain = parseFloat(value);
+  else if (type === 'autoAmplitude') {
+    micControl = false;
+    tabControl = false;
+    stopMic(); stopTab();
+    if (menuWindow) {
+      menuWindow.postMessage({ type: 'deactivateButtons', except: 'autoAmplitude' }, '*');
+    }
+    autoAmplitude = value;
+    if (autoAmplitude) startAutoAmplitude(); else clearInterval(autoAmplitudeTimer);
+  } else if (type === 'micControl') {
+    autoAmplitude = false;
+    tabControl = false;
+    clearInterval(autoAmplitudeTimer); stopTab();
+    if (menuWindow) {
+      menuWindow.postMessage({ type: 'deactivateButtons', except: 'micControl' }, '*');
+    }
+    micControl = value;
+    if (value) startMic(); else stopMic();
+  } else if (type === 'tabControl') {
+    autoAmplitude = false;
+    micControl = false;
+    clearInterval(autoAmplitudeTimer); stopMic();
+    if (menuWindow) {
+      menuWindow.postMessage({ type: 'deactivateButtons', except: 'tabControl' }, '*');
+    }
+    tabControl = value;
+    if (value) startTab(); else stopTab();
+  }
+});
+
+
+function startAutoAmplitude() {
+  clearInterval(autoAmplitudeTimer);
+  const interval = state.mode === 'seconds' ? state.interval * 1000 : (60 / state.bpm) * 1000;
+
+  autoAmplitudeTimer = setInterval(() => {
+    const range = 0.1;
+    const current = state.amplitude;
+    const min = Math.max(0, current - range / 2);
+    const max = Math.min(1.5, current + range / 2);
+
+    let amp;
+    let tries = 0;
+    do {
+      amp = Math.random() * (max - min) + min;
+      tries++;
+    } while (Math.abs(amp - current) < 0.01 && tries < 10);
+
+    state.amplitude = amp;
+
+    if (menuWindow) {
+      menuWindow.postMessage({
+        type: 'setAmplitudeSlider',
+        value: amp.toFixed(2)
+      }, '*');
+    }
+  }, interval);
+}
+
+
+async function startMic() {
+  micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioContext.createMediaStreamSource(micStream);
+  micAnalyser = audioContext.createAnalyser();
+  micAnalyser.fftSize = 64;
+  micDataArray = new Uint8Array(micAnalyser.frequencyBinCount);
+  source.connect(micAnalyser);
+}
+
+function stopMic() {
+  micStream?.getTracks().forEach(t => t.stop());
+  micStream = null;
+  audioContext?.close();
+}
+
+async function startTab() {
+  tabStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  tabAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const source = tabAudioContext.createMediaStreamSource(tabStream);
+  tabAnalyser = tabAudioContext.createAnalyser();
+  tabAnalyser.fftSize = 64;
+  tabDataArray = new Uint8Array(tabAnalyser.frequencyBinCount);
+  source.connect(tabAnalyser);
+}
+
+function stopTab() {
+  tabStream?.getTracks().forEach(t => t.stop());
+  tabStream = null;
+  tabAudioContext?.close();
+}
+
+let time = 0;
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const w = canvas.width;
+  const h = canvas.height;
+  const midY = h / 2;
+
+  if (micControl && micAnalyser) {
+    micAnalyser.getByteFrequencyData(micDataArray);
+    const avg = micDataArray.reduce((a, b) => a + b) / micDataArray.length;
+    state.amplitude = Math.min(1.5, (avg / 128) * micGain);
+  }
+  if (tabControl && tabAnalyser) {
+    tabAnalyser.getByteFrequencyData(tabDataArray);
+    const avg = tabDataArray.reduce((a, b) => a + b) / tabDataArray.length;
+    state.amplitude = Math.min(1.5, (avg / 128) * tabGain);
+  }
+
+  ctx.beginPath();
+  for (let x = 0; x < w; x++) {
+    const t = (x / w) * state.cycles * 2 * Math.PI;
+    const a = state.amplitude * (h / 4);
+    let y = 0;
+    switch (state.waveform) {
+  case 'sine':
+    y = Math.sin(t * state.frequency + time);
+    break;
+  case 'square':
+    y = Math.sign(Math.sin(t * state.frequency + time));
+    break;
+  case 'triangle':
+    y = 2 * Math.abs(2 * (((t * state.frequency + time) / (2 * Math.PI)) % 1) - 1) - 1;
+    break;
+  case 'sawtooth':
+    y = 2 * (((t * state.frequency + time) / (2 * Math.PI)) % 1) - 1;
+    break;
+}
+    ctx.lineTo(x, midY - y * a);
+  }
+  ctx.strokeStyle = state.color;
+  ctx.lineWidth = state.lineWidth;
+  ctx.stroke();
+
+  if (state.speed > 0) if (state.speed > 0) time += 0.01 * state.speed;
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+  
+
+
+<button id="openMenuBtn" onclick="openMenuPopup()">Open Menu</button>
+<button id="backToMainBtn" onclick="location.href='https://koensweers.github.io/visualdistort/'">Back to main page</button>
+
+
+<script>
+  const menuBtn = document.getElementById('openMenuBtn');
+  const backBtn = document.getElementById('backToMainBtn');
+
+  function showButtons() {
+    menuBtn.style.display = 'block';
+    backBtn.style.display = 'block';
+  }
+
+  function hideButtons() {
+    menuBtn.style.display = 'none';
+    backBtn.style.display = 'none';
+  }
+
+  document.addEventListener('mouseenter', showButtons);
+  document.addEventListener('mouseleave', hideButtons);
+
+  if (document.body.matches(':hover')) {
+    showButtons();
+  }
+</script>
+
+</body>
+</html>

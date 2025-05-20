@@ -1,0 +1,232 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>visualdistort - oscillator menu</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-color: #000;
+      color: #fff;
+      font-family: 'Source Code Pro', monospace;
+      padding: 10px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, select, button {
+      width: 150px;
+      margin-top: 4px;
+      font-family: 'Source Code Pro', monospace;
+    }
+    button {
+      background: #fff;
+      color: #000;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    input[type="range"].highlight {
+      box-shadow: 0 0 8px 2px #ffffff;
+    }
+  </style>
+</head>
+<body>
+
+<div style="text-align: center; margin-bottom: 20px;">
+  <a href="https://koensweers.github.io/visualdistort/" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
+    <h1 style="margin: 0; font-family: 'Source Code Pro', monospace; color: #ffffff;">visualdistort</h1>
+  </a>
+  <small style="display: block; font-family: 'Source Code Pro', monospace;">oscillator</small>
+</div>
+
+
+<label>Waveform:
+  <select id="waveform">
+    <option value="sine">Sine</option>
+    <option value="square">Square</option>
+    <option value="triangle">Triangle</option>
+    <option value="sawtooth">Sawtooth</option>
+  </select>
+</label>
+
+<label>Amplitude:
+  <input type="range" id="amplitude" min="0" max="1.5" step="0.01" value="1"/> <span id="ampValue">1.00</span>
+</label>
+
+<label>Frequency:
+  <input type="range" id="frequency" min="0.1" max="10" step="0.1" value="1"/>
+</label>
+
+<label>Cycles:
+  <input type="range" id="cycles" min="1" max="10" step="1" value="2"/>
+</label>
+
+<label>Color:
+  <input type="color" id="color" value="#ffffff"/>
+</label>
+
+<label>Line width:
+  <input type="range" id="lineWidth" min="1" max="10" step="1" value="2"/>
+</label>
+
+<label>Speed:
+  <input type="range" id="speed" min="0" max="30" step="0.1" value="0"/>
+<hr style="margin: 20px 0; border: none; border-top: 2px solid #fff;" /> 
+  
+</label>
+
+
+<label><input type="radio" name="mode" value="seconds" checked/> Seconds</label>
+<label><input type="radio" name="mode" value="bpm"/> BPM</label>
+<label id="intervalLabel">Interval (sec):
+  <input id="interval" type="range" min="0.1" max="2" step="0.01" value="1"/> <span id="intervalValue">1.00</span>
+</label>
+<div id="bpmContainer" style="display:none;">
+  <label>BPM:
+    <input id="bpm" type="number" min="20" max="2000" value="128"/>
+  </label>
+  <button id="bpmTapper">Tap BPM</button>
+</div>
+
+<button id="autoAmpBtn" onclick="toggleAutoAmp()">Auto Amplitude: Off</button>
+<button id="micBtn" onclick="toggleMic()">Use Microphone: Off</button>
+<button id="tabBtn" onclick="toggleTab()">Use Tab + Audio: Off</button>
+
+<label id="micVolLabel" style="display:none;">Mic Volume:
+  <input id="micVolume" type="range" min="0" max="5" step="0.1" value="1"/>
+</label>
+<label id="tabVolLabel" style="display:none;">Tab Volume:
+  <input id="tabVolume" type="range" min="0" max="5" step="0.1" value="1"/>
+</label>
+
+<script>
+const send = (type, value) => window.opener?.postMessage({ type, value }, "*");
+
+document.querySelectorAll('input, select').forEach(el => {
+  el.oninput = () => {
+    if (el.id === 'amplitude') {
+      document.getElementById('ampValue').innerText = parseFloat(el.value).toFixed(2);
+    }
+    send(el.id, el.type === 'checkbox' ? el.checked : el.value);
+  };
+});
+
+document.querySelectorAll('input[name="mode"]').forEach(r => {
+  r.onchange = () => {
+    send('mode', r.value);
+    document.getElementById('intervalLabel').style.display = r.value === 'seconds' ? 'block' : 'none';
+    document.getElementById('bpmContainer').style.display = r.value === 'bpm' ? 'block' : 'none';
+  };
+});
+
+let autoAmp = false, micOn = false, tabOn = false;
+
+function toggleAutoAmp() {
+  autoAmp = !autoAmp;
+  send('autoAmplitude', autoAmp);
+  document.getElementById('autoAmpBtn').innerText = `Auto Amplitude: ${autoAmp ? 'On' : 'Off'}`;
+}
+
+function toggleMic() {
+  micOn = !micOn;
+  send('micControl', micOn);
+  document.getElementById('micBtn').innerText = `Use Microphone: ${micOn ? 'On' : 'Off'}`;
+  document.getElementById('micVolLabel').style.display = micOn ? 'block' : 'none';
+}
+
+function toggleTab() {
+  tabOn = !tabOn;
+  send('tabControl', tabOn);
+  document.getElementById('tabBtn').innerText = `Use Tab + Audio: ${tabOn ? 'On' : 'Off'}`;
+  document.getElementById('tabVolLabel').style.display = tabOn ? 'block' : 'none';
+}
+
+document.getElementById('bpmTapper').onclick = () => {
+  const now = Date.now();
+  window.tapTimes = window.tapTimes || [];
+  window.tapTimes.push(now);
+  if (window.tapTimes.length > 5) window.tapTimes.shift();
+  if (window.tapTimes.length > 1) {
+    const intervals = window.tapTimes.slice(1).map((t, i) => t - window.tapTimes[i]);
+    const avg = intervals.reduce((a, b) => a + b) / intervals.length;
+    const bpm = Math.round(60000 / avg);
+    document.getElementById('bpm').value = bpm;
+    send('bpm', bpm);
+  }
+};
+
+window.addEventListener('message', ({ data }) => {
+  if (data.type === 'setAmplitudeSlider') {
+    const amp = parseFloat(data.value);
+    const input = document.getElementById('amplitude');
+    input.value = amp;
+    document.getElementById('ampValue').innerText = amp.toFixed(2);
+    input.classList.add('highlight');
+    setTimeout(() => input.classList.remove('highlight'), 300);
+  }
+});
+
+window.onload = () => {
+  document.querySelectorAll('input, select').forEach(el => {
+    if (el.id) send(el.id, el.value);
+  });
+};
+
+window.addEventListener('message', ({ data }) => {
+  if (data.type === 'deactivateButtons') {
+    const except = data.except;
+    if (except !== 'autoAmplitude') {
+      autoAmp = false;
+      document.getElementById('autoAmpBtn').innerText = 'Auto Amplitude: Off';
+    }
+    if (except !== 'micControl') {
+      micOn = false;
+      document.getElementById('micBtn').innerText = 'Use Microphone: Off';
+      document.getElementById('micVolLabel').style.display = 'none';
+    }
+    if (except !== 'tabControl') {
+      tabOn = false;
+      document.getElementById('tabBtn').innerText = 'Use Tab + Audio: Off';
+      document.getElementById('tabVolLabel').style.display = 'none';
+    }
+  }
+});
+
+
+document.getElementById('micVolume').oninput = (e) => {
+  send('micVolume', parseFloat(e.target.value));
+};
+document.getElementById('tabVolume').oninput = (e) => {
+  send('tabVolume', parseFloat(e.target.value));
+};
+
+
+document.getElementById('speed').oninput = (e) => send('speed', parseFloat(e.target.value));
+
+document.getElementById('interval').oninput = (e) => {
+  const v = parseFloat(e.target.value);
+  document.getElementById('intervalValue').innerText = v.toFixed(2);
+  send('interval', v);
+};
+</script>
+
+
+<hr style="margin: 20px 0; border: none; border-top: 2px solid #fff;" />
+
+<div style="font-size: 13px; line-height: 1.5;">
+  <strong>How to use Auto Amplitude:</strong><br/>
+  To start, click the <em>Auto Amplitude</em> button above. By default, the mode is set to <strong>Seconds</strong>. You can switch to <strong>BPM</strong> mode either by entering a value manually or using the <em>Tap BPM</em> button to detect the tempo. Then, use the <strong>Amplitude</strong> slider to set a base level. Auto Amplitude will smoothly fluctuate the amplitude within a small range around this value.
+  <br/><br/>
+  If you switch to <strong>Microphone</strong> or <strong>Tab + Audio</strong> input, the Amplitude slider will be disabled — amplitude will instead respond to the incoming audio volume. You can fine-tune this behavior using the respective <strong>Mic Volume</strong> or <strong>Tab Volume</strong> sliders.
+  <br/><br/>
+  <strong>How to record:</strong><br/>
+  Use screen recording software such as <strong>OBS</strong> to capture your visuals. Press <strong>F11</strong> to toggle fullscreen mode in your browser for a clean recording.
+</div>
+
+
+</body>
+</html>

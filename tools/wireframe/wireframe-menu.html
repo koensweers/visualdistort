@@ -245,20 +245,6 @@ document.getElementById('bpmTapper').addEventListener('click', () => {
   </script>
   
   
-
-<script>
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'c' || event.key === 'C') {
-    window.opener.postMessage({ type: 'toggleCamera' }, '*');
-  } else if (event.key === 'r' || event.key === 'R') {
-    window.opener.postMessage({ type: 'resetCamera' }, '*');
-  }
-});
-</script>
-
-</body>
-</html>
-
 <script>
 let tabNoiseOn = false;
 function toggleTabNoise() {
@@ -303,4 +289,34 @@ function toggleTabNoise() {
 document.getElementById('tabVolume').oninput = e => {
   send('tabVolume', parseFloat(e.target.value));
 };
+
 </script>
+
+
+<script>
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'c' || event.key === 'C') {
+    window.opener.postMessage({ type: 'toggleCamera' }, '*');
+  } else if (event.key === 'r' || event.key === 'R') {
+    window.opener.postMessage({ type: 'resetCamera' }, '*');
+  }
+});
+</script>
+
+
+<hr style="margin: 20px 0; border: none; border-top: 2px solid #fff;" />
+
+<div style="font-size: 13px; line-height: 1.5;">
+  <strong>How to use Auto Noise</strong><br/>
+  To start, click the <em>Auto Noise</em> button above. By default, the mode is set to <strong>Seconds</strong>. You can switch to <strong>BPM</strong> mode either by entering a value manually or using the <em>Tap BPM</em> button to detect the tempo. Then, use the <strong>Noise</strong> slider to set a base level. Auto Noise will smoothly fluctuate the noise within a small range around this value.
+  <br/><br/>
+  If you switch to <strong>Microphone</strong> or <strong>Tab + Audio</strong> input, the noise slider will be disabled — noise will instead respond to the incoming audio volume. You can fine-tune this behavior using the respective <strong>Mic Volume</strong> or <strong>Tab Volume</strong> sliders.
+  <br/><br/>
+  <strong>How to record:</strong><br/>
+  Use screen recording software such as <strong>OBS</strong> to capture your visuals. Press <strong>F11</strong> to toggle fullscreen mode in your browser for a clean recording.
+</div>
+
+
+
+</body>
+</html>
